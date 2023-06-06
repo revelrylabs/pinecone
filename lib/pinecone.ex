@@ -307,6 +307,34 @@ defmodule Pinecone do
   end
 
   @doc """
+  Deletes all vectors from the given Pinecone index that match the given metadata filter.
+  See https://docs.pinecone.io/docs/metadata-filtering for more on the filter syntax
+
+  ## Options
+
+    * `:namespace` - index namespace to delete vectors from. Defaults to `nil`
+      which will delete all vectors from the default namespace
+
+    * `:config` - client configuration used to override application
+    level configuration. Defaults to `nil`
+  """
+  @spec delete_by_filter(index :: index_type(), filter :: map(), opts :: keyword()) ::
+          success_type(String.t()) | error_type()
+  def delete_by_filter(%Index{name: name, project_name: project_name}, filter, opts \\ [])
+      when is_map(filter) do
+    opts = Keyword.validate!(opts, [:config, :namespace])
+
+    body = %{
+      "deleteAll" => false,
+      "filter" => filter
+    }
+
+    body = if opts[:namespace], do: Map.put(body, "namespace", opts[:namespace]), else: body
+
+    post({:vectors, "#{name}-#{project_name}"}, "vectors/delete", body, opts[:config])
+  end
+
+  @doc """
   Queries the given Pinecone index with the given vector.
 
   ## Options
@@ -323,6 +351,8 @@ defmodule Pinecone do
     * `:namespace` - index namespace to query. Defaults to `nil`
       which will query vectors in the default namespace
 
+    * `:filter` - metadata filter to apply to the query. See https://docs.pinecone.io/docs/metadata-filtering
+
     * `:config` - client configuration used to override application
     level configuration. Defaults to `nil`
   """
@@ -335,18 +365,21 @@ defmodule Pinecone do
         :namespace,
         top_k: 5,
         include_values: false,
-        include_metadata: false
+        include_metadata: false,
+        filter: %{}
       ])
 
     validate!("top_k", opts[:top_k], :non_negative_integer)
     validate!("include_values", opts[:include_values], :boolean)
     validate!("include_metadata", opts[:include_metadata], :boolean)
+    validate!("filter", opts[:filter], :map)
 
     body = %{
       "vector" => vector,
       "topK" => opts[:top_k],
       "includeValues" => opts[:include_values],
-      "includeMetadata" => opts[:include_metadata]
+      "includeMetadata" => opts[:include_metadata],
+      "filter" => opts[:filter]
     }
 
     body = if opts[:namespace], do: Map.put(body, "namespace", opts[:namespace]), else: body
@@ -434,6 +467,7 @@ defmodule Pinecone do
   defp validate!(_key, value, :non_negative_integer) when is_integer(value) and value > 0, do: :ok
   defp validate!(_key, value, :boolean) when is_boolean(value), do: :ok
   defp validate!(_key, value, :binary) when is_binary(value), do: :ok
+  defp validate!(_key, value, :map) when is_map(value), do: :ok
 
   defp validate!(key, value, type) do
     raise ArgumentError, "expected #{key} to be type #{inspect(type)}, got #{inspect(value)}"
