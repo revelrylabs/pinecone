@@ -286,6 +286,7 @@ defmodule Pinecone do
 
   @doc """
   Deletes all vectors from the given Pinecone index.
+  If the filter option is passed, deletes only vectors that match the given metadata filter
 
   ## Options
 
@@ -294,16 +295,22 @@ defmodule Pinecone do
 
     * `:config` - client configuration used to override application
     level configuration. Defaults to `nil`
+
+    * `:filter` - metadata filter to apply to the deletion. See https://docs.pinecone.io/docs/metadata-filtering
   """
   @spec delete_all_vectors(index :: index_type(), opts :: keyword()) ::
           success_type(String.t()) | error_type()
   def delete_all_vectors(%Index{name: name, project_name: project_name}, opts \\ []) do
-    opts = Keyword.validate!(opts, [:config, :namespace])
+    opts = Keyword.validate!(opts, [:config, :namespace, :filter])
 
-    params = [{"delete_all", true}]
-    params = if opts[:namespace], do: [{"namespace", opts[:namespace]} | params], else: params
+    body =
+      if is_map(opts[:filter]),
+        do: %{"filter" => opts[:filter]},
+        else: %{"deleteAll" => true}
 
-    delete({:vectors, "#{name}-#{project_name}"}, "vectors/delete", opts[:config], params: params)
+    body = if opts[:namespace], do: Map.put(body, "namespace", opts[:namespace]), else: body
+
+    post({:vectors, "#{name}-#{project_name}"}, "vectors/delete", body, opts[:config])
   end
 
   @doc """
