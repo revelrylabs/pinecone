@@ -244,6 +244,38 @@ defmodule Pinecone do
   end
 
   @doc """
+  Updates an existing vector in the given Pinecone index.
+
+  The allowed keys for the vector parameter are:
+    * `:id` (required) - the ID used when upserting the vector into the index
+    * `:values` or `:sparseValues` if updating the actual vector
+    * `:setMetadata` a map containing the metadata to update. Metadata keys
+      that are omitted will be left intact in the index
+
+  ## Options
+
+    * `:namespace` - index namespace to upsert vectors to. Defaults to `nil`
+      which will upsert vectors in the default namespace
+
+    * `:config` - client configuration used to override application
+    level configuration. Defaults to `nil`
+  """
+  def update_vector(%Index{name: name, project_name: project_name}, vector, opts \\ []) do
+    opts = Keyword.validate!(opts, [:config, :namespace])
+    body = vector
+
+    body =
+      if opts[:namespace] do
+        validate!("namespace", opts[:namespace], :binary)
+        Map.put(body, "namespace", opts[:namespace])
+      else
+        body
+      end
+
+    post({:vectors, "#{name}-#{project_name}"}, "vectors/update", body, opts[:config])
+  end
+
+  @doc """
   Fetches vectors with the given IDs from the given Pinecone index.
 
   ## Options
